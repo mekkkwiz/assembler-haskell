@@ -1,7 +1,5 @@
 from instructions import inst as Instruction
 
-
-
 class AssemblyTranslator:
 
     __machineLang = []                      #all instructions in assembly that translated to machine language
