@@ -1,31 +1,46 @@
 import Data.Map (Map)
 import qualified Data.Map as Map
 import Data.Char
+import Data.Maybe
 
 
 type Register = Int
 type Label = String
+type Opcode = String
 type SimbolicAddr = String
 
 type Offset = Either SimbolicAddr Int
 
 type SymbolTable = [(Label,Int)]
 
-data Instruction =  RType (Maybe Label) Register Register Register
-                  | IType (Maybe Label) Register Register Offset
-                  | JType (Maybe Label) Register Register
-                  | OType (Maybe Label)
+data Instruction =  Add (Maybe Label) Opcode Register Register Register
+                  | Nand (Maybe Label) Opcode Register Register Register
+                  | Lw (Maybe Label) Opcode Register Register Offset
+                  | Sw (Maybe Label) Opcode Register Register Offset
+                  | Beq (Maybe Label) Opcode Register Register Offset
+                  | Jalr (Maybe Label) Opcode Register Register
+                  | Halt (Maybe Label) Opcode
+                  | Noop (Maybe Label) Opcode
 
 -- for make show can print Instruction
 instance Show Instruction where
-  show (RType (Just label) regA regB destReg) = "R type " ++ label ++ " [" ++ show regA ++ " " ++ show regB ++ " " ++ show destReg ++ "]"
-  show (IType (Just label) regA regB offset) = "I type " ++ label ++ " [" ++ show regA ++ " " ++ show regB ++ " " ++ showOffset offset ++ "]"
-  show (JType (Just label) regA regB) = "J type " ++ label ++ " [" ++ show regA ++ " " ++ show regB ++ "]"
-  show (OType (Just label)) = "O type " ++ label
-  show (RType Nothing regA regB destReg) = "R type - [" ++ show regA ++ " " ++ show regB ++ " " ++ show destReg ++ "]"
-  show (IType Nothing regA regB offset) = "I type - [" ++ show regA ++ " " ++ show regB ++ " " ++ showOffset offset ++ "]"
-  show (JType Nothing regA regB) = "J type - [" ++ show regA ++ " " ++ show regB ++ "]"
-  show (OType Nothing) = "O type -"
+  show (Add (Just label) opcode regA regB destReg) = "Add (" ++ opcode ++ ") " ++ label ++ " [" ++ show regA ++ " " ++ show regB ++ " " ++ show destReg ++ "]"
+  show (Nand (Just label) opcode regA regB destReg) = "Nand (" ++ opcode ++ ") " ++ label ++ " [" ++ show regA ++ " " ++ show regB ++ " " ++ show destReg ++ "]"
+  show (Lw (Just label) opcode regA regB offset) = "Lw (" ++ opcode ++ ") " ++ label ++ " [" ++ show regA ++ " " ++ show regB ++ " " ++ showOffset offset ++ "]"
+  show (Sw (Just label) opcode regA regB offset) = "Sw (" ++ opcode ++ ") " ++ label ++ " [" ++ show regA ++ " " ++ show regB ++ " " ++ showOffset offset ++ "]"
+  show (Beq (Just label) opcode regA regB offset) = "Beq (" ++ opcode ++ ") " ++ label ++ " [" ++ show regA ++ " " ++ show regB ++ " " ++ showOffset offset ++ "]"
+  show (Jalr (Just label) opcode regA regB) = "Jalr (" ++ opcode ++ ") " ++ label ++ " [" ++ show regA ++ " " ++ show regB ++ "]"
+  show (Halt (Just label) opcode) = "Halt (" ++ opcode ++ ") " ++ label
+  show (Noop (Just label) opcode) = "Noop (" ++ opcode ++ ") " ++ label
+  show (Add Nothing opcode regA regB destReg) = "Add (" ++ opcode ++ ") -" ++ " [" ++ show regA ++ " " ++ show regB ++ " " ++ show destReg ++ "]"
+  show (Nand Nothing opcode regA regB destReg) = "Nand (" ++ opcode ++ ") -" ++ " [" ++ show regA ++ " " ++ show regB ++ " " ++ show destReg ++ "]"
+  show (Lw Nothing opcode regA regB offset) = "Lw (" ++ opcode ++ ") -" ++ " [" ++ show regA ++ " " ++ show regB ++ " " ++ showOffset offset ++ "]"
+  show (Sw Nothing opcode regA regB offset) = "Sw (" ++ opcode ++ ") -" ++ " [" ++ show regA ++ " " ++ show regB ++ " " ++ showOffset offset ++ "]"
+  show (Beq Nothing opcode regA regB offset) = "Beq (" ++ opcode ++ ") -" ++ " [" ++ show regA ++ " " ++ show regB ++ " " ++ showOffset offset ++ "]"
+  show (Jalr Nothing opcode regA regB) = "Jalr (" ++ opcode ++ ") -" ++ " [" ++ show regA ++ " " ++ show regB ++ "]"
+  show (Halt Nothing opcode)  = "Halt (" ++ opcode ++ ") -"
+  show (Noop Nothing opcode) = "Noop (" ++ opcode ++ ") -"
+
 
 showOffset :: Offset -> String
 showOffset (Left symAddr) = symAddr
@@ -85,38 +100,50 @@ padLeft :: Char -> Int -> String -> String
 padLeft c n str = replicate (n - length str) c ++ str
 
 -- Parse an assembly instruction
-parseInstruction :: SymbolTable -> String -> Instruction
+parseInstruction :: SymbolTable -> String -> Maybe Instruction
 parseInstruction symTable instr =
   case words instr of
     (label : instrName : args) ->
-      if instrName `elem` Map.keys opcodes
-      then parseWithLabel symTable label instrName args
-      else parseWithoutLabel symTable label (instrName : args)
+      if instrName == ".fill" then Nothing
+      else  if instrName `elem` Map.keys opcodes
+            then Just $ parseWithLabel symTable label instrName args
+            else Just $ parseWithoutLabel symTable label (instrName : args)
+    [instrName] ->
+      if instrName `elem` ["halt","noop"]
+      then Just $ parseWithoutLabel symTable instrName []
+      else error "Invalid instruction"
     _ -> error "Invalid instruction"
 
 parseWithLabel :: SymbolTable -> Label -> String -> [String] -> Instruction
 parseWithLabel symTable label instrName args =
-  case instrName of
-    "add" -> RType (Just label) (parseReg $ head args) (parseReg $ args !! 1) (parseReg $ args !! 2)
-    "nand" -> RType (Just label) (parseReg $ head args) (parseReg $ args !! 1) (parseReg $ args !! 2)
-    "lw" -> IType (Just label) (parseReg $ head args) (parseReg $ args !! 2) (parseOffset symTable $ args !! 1)
-    "sw" -> IType (Just label) (parseReg $ head args) (parseReg $ args !! 2) (parseOffset symTable $ args !! 1)
-    "beq" -> IType (Just label) (parseReg $ head args) (parseReg $ args !! 1) (parseOffset symTable $ args !! 2)
-    "jalr" -> JType (Just label) (parseReg $ head args) (parseReg $ args !! 1)
-    "halt" -> OType (Just label)
-    "noop" -> OType (Just label)
-    _ -> error ("Invalid opcode: parseWithLabel - " ++ instrName)
+  let opcode = Map.lookup instrName opcodes
+  in fromMaybe (error ("Invalid opcode: parseWithLabel - " ++ instrName)) $
+        case instrName of
+          "add"  -> fmap (\op -> Add (Just label) op (parseReg $ head args) (parseReg $ args !! 1) (parseReg $ args !! 2)) opcode
+          "nand" -> fmap (\op -> Nand (Just label) op (parseReg $ head args) (parseReg $ args !! 1) (parseReg $ args !! 2)) opcode
+          "lw"   -> fmap (\op -> Lw (Just label) op (parseReg $ head args) (parseReg $ args !! 1) (parseOffset symTable $ args !! 2)) opcode
+          "sw"   -> fmap (\op -> Sw (Just label) op (parseReg $ head args) (parseReg $ args !! 1) (parseOffset symTable $ args !! 2)) opcode
+          "beq"  -> fmap (\op -> Beq (Just label) op (parseReg $ head args) (parseReg $ args !! 1) (parseOffset symTable $ args !! 2)) opcode
+          "jalr" -> fmap (\op -> Jalr (Just label) op (parseReg $ head args) (parseReg $ args !! 1)) opcode
+          "halt" -> Just $ Halt (Just label) (fromJust opcode)
+          "noop" -> Just $ Noop (Just label) (fromJust opcode)
+          _      -> Nothing
 
 parseWithoutLabel :: SymbolTable -> String -> [String] -> Instruction
 parseWithoutLabel symTable instrName args =
-  case instrName of
-    "add" -> RType Nothing (parseReg $ head args) (parseReg $ args !! 1) (parseReg $ args !! 2)
-    "nand" -> RType Nothing (parseReg $ head args) (parseReg $ args !! 1) (parseReg $ args !! 2)
-    "lw" -> IType Nothing (parseReg $ head args) (parseReg $ args !! 1) (parseOffset symTable $ args !! 2)
-    "sw" -> IType Nothing (parseReg $ head args) (parseReg $ args !! 1) (parseOffset symTable $ args !! 2)
-    "beq" -> IType Nothing (parseReg $ head args) (parseReg $ args !! 1) (parseOffset symTable $ args !! 2)
-    "jalr" -> JType Nothing (parseReg $ head args) (parseReg $ args !! 1)
-    _ -> error ("Invalid opcode: parseWithoutLabel - " ++ instrName)
+  let opcode = Map.lookup instrName opcodes
+  in fromMaybe (error ("Invalid opcode: parseWithoutLabel - " ++ instrName)) $
+        case instrName of
+          "add"  -> fmap (\op -> Add Nothing op (parseReg $ head args) (parseReg $ args !! 1) (parseReg $ args !! 2)) opcode
+          "nand" -> fmap (\op -> Nand Nothing op (parseReg $ head args) (parseReg $ args !! 1) (parseReg $ args !! 2)) opcode
+          "lw"   -> fmap (\op -> Lw Nothing op (parseReg $ head args) (parseReg $ args !! 1) (parseOffset symTable $ args !! 2)) opcode
+          "sw"   -> fmap (\op -> Sw Nothing op (parseReg $ head args) (parseReg $ args !! 1) (parseOffset symTable $ args !! 2)) opcode
+          "beq"  -> fmap (\op -> Beq Nothing op (parseReg $ head args) (parseReg $ args !! 1) (parseOffset symTable $ args !! 2)) opcode
+          "jalr" -> fmap (\op -> Jalr Nothing op (parseReg $ head args) (parseReg $ args !! 1)) opcode
+          "halt" -> Just $ Halt Nothing (fromJust opcode)
+          "noop" -> Just $ Noop Nothing (fromJust opcode)
+          _      -> Nothing
+
 
 
 parseReg :: String -> Register
@@ -198,10 +225,65 @@ parseOffset symTable offsetStr
 --     "stack .fill 0"
 --   ]
 
+-- Define the types and functions needed for parsing instructions
 -- main :: IO ()
 -- main = do
---   let inputPath = "./source/testfiles/demofile copy.txt"
---   let outputPath = "./output/machine_code.txt"
---   code <- assembleProgram inputPath
---   writeMachineCodeToFile outputPath code
---   putStrLn "Assembly complete. Machine code written to file."
+--   -- Read in the assembly code from a file
+--   assemblyCode <- readFile "exampleCode.txt"
+
+--   -- Parse the assembly code into a list of instructions
+--   let symTable = buildSymbolTable assemblyCode
+--   let instrs = parseInstructions symTable assemblyCode
+
+--   -- Print out each instruction
+--   mapM_ print instrs
+
+-- Define the types and functions needed for parsing instructions
+
+removeComments :: [String] -> [String]
+removeComments = map (takeWhile (/= '#') . trim)
+  where trim = dropWhile isSpace . reverse . dropWhile isSpace . reverse
+
+
+main :: IO ()
+main = do
+  let exampleCode = unlines [
+        "lw 0 5 pos1",
+        "lw 0 1 input",
+        "lw 0 2 subAd",
+        "jalr 2 4",
+        "lw 0 5 pos1",
+        "lw 0 1 input",
+        "lw 0 2 subAd",
+        "jalr 2 4",
+        "halt",
+        "sub4n sw 7 4 stack",
+        "add 7 5 7",
+        "sw 7 1 stack",
+        "add 7 5 7",
+        "add 1 1 1",
+        "add 1 1 3",
+        "lw 0 2 neg1",
+        "add 7 2 7",
+        "lw 7 1 stack",
+        "add 7 2 7",
+        "lw 7 4 stack",
+        "jalr 4 2",
+        "pos1 .fill 1",
+        "neg1 .fill -1",
+        "subAdr .fill sub4n",
+        "input .fill 10",
+        "stack .fill 0" ]
+      symTable = [
+        ("pos1", 1),
+        ("neg1", -1),
+        ("subAd", 2),
+        ("sub4n", 3),
+        ("input", 4),
+        ("stack", 5),
+        ("subAdr", 6)]
+
+  let linesOfCode = map (show . parseInstruction symTable) $ removeComments $ filter (not . null) $ lines exampleCode
+  -- print (length linesOfCode)
+  mapM_ putStrLn linesOfCode
+
