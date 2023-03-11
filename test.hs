@@ -247,7 +247,7 @@ removeComments = map (takeWhile (/= '#') . trim)
 
 main :: IO ()
 main = do
-  let exampleCode = unlines [
+  let exampleCode = [
         "lw 0 5 pos1",
         "lw 0 1 input",
         "lw 0 2 subAd",
@@ -274,6 +274,7 @@ main = do
         "subAdr .fill sub4n",
         "input .fill 10",
         "stack .fill 0" ]
+
       symTable = [
         ("pos1", 1),
         ("neg1", -1),
@@ -283,7 +284,7 @@ main = do
         ("stack", 5),
         ("subAdr", 6)]
 
-  let linesOfCode = map (show . parseInstruction symTable) $ removeComments $ filter (not . null) $ lines exampleCode
+  let linesOfCode = map (show . parseInstruction symTable) exampleCode
   -- print (length linesOfCode)
   mapM_ putStrLn linesOfCode
 
