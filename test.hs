@@ -56,41 +56,52 @@ opcodes = Map.fromList [("add", "000"), ("nand", "001"), ("lw", "010"),
 addToSymbolTable :: SymbolTable -> Label -> Int -> SymbolTable
 addToSymbolTable symTable label addr = (label, addr) : symTable
 
--- Convert instruction into machine code
--- toMachineCode :: SymbolTable -> Instruction -> Maybe Int
--- toMachineCode symTable (RType op rs rt rd) =
---   case Map.lookup op opcodes of
---     Just opcode -> Just $ read (opcode ++ show rs ++ show rt ++ "000" ++ show rd)
---     Nothing -> Nothing
+toMachineCode :: SymbolTable -> Instruction -> Maybe Int
+toMachineCode symTable instr = case instr of
+  (Add label opcode regA regB destReg) -> encodeRType label opcode regA regB destReg
+  (Nand label opcode regA regB destReg) -> encodeRType label opcode regA regB destReg
+  (Lw label opcode regA regB offset) -> encodeIType label opcode regA regB offset
+  (Sw label opcode regA regB offset) -> encodeIType label opcode regA regB offset
+  (Beq label opcode regA regB offset) -> encodeIType label opcode regA regB offset
+  (Jalr label opcode regA regB) -> encodeJType label opcode regA regB
+  (Halt label opcode) -> encodeOType label opcode
+  (Noop label opcode) -> encodeOType label opcode
+  where
+    encodeRType label opcode regA regB destReg =
+      Just $ binToDec $ opcode ++
+                        padLeft '0' 3 (decToBin regA) ++
+                        padLeft '0' 3 (decToBin regB) ++
+                        padLeft '0' 13 "" ++
+                        padLeft '0' 3 (decToBin destReg)
+    encodeIType label opcode regA regB offset =
+      let padOffset = padLeft '0' 16 . decToBin $ either (fromJust . flip lookup symTable) id offset
+      in Just $ binToDec $  opcode ++
+                            padLeft '0' 3 (decToBin regA) ++
+                            padLeft '0' 3 (decToBin regB) ++
+                            padOffset
+    encodeJType label opcode regA regB =
+      Just $ binToDec $ opcode ++
+                        padLeft '0' 3 (decToBin regA) ++
+                        padLeft '0' 3 (decToBin regB) ++
+                        padLeft '0' 15 ""
+    encodeOType label opcode =
+      Just $ binToDec $ opcode ++ padLeft '0' 22 ""
 
--- toMachineCode symTable (IType op rs rt offset) =
---   case Map.lookup op opcodes of
---     Just opcode -> Just $ read (opcode ++ show rs ++ show rt ++ padOffset offset)
---     Nothing -> Nothing
-
--- toMachineCode symTable (JType op rs rd) =
---   case Map.lookup op opcodes of
---     Just opcode -> Just $ read (opcode ++ show rs ++ "000" ++ show rd ++ "000000000000")
---     Nothing -> Nothing
-
--- toMachineCode symTable (OType op) =
---   case Map.lookup op opcodes of
---     Just opcode -> Just $ read (opcode ++ "000000000000000000000000")
---     Nothing -> Nothing
-
--- -- Pad the offset field to 16 bits
--- padOffset :: Offset -> String
--- padOffset offset
---   | offset >= 0 = padLeft '0' 16 (decToBin offset)
---   | otherwise = padLeft '1' 16 (decToBin (abs offset - 1))
 
 -- Convert decimal number to binary string
 decToBin :: Int -> String
 decToBin 0 = "0"
-decToBin n = reverse $ go n
+decToBin n
+  | n >= 0    = toBinary n
+  | otherwise = padLeft '1' 16 $ toBinary (2^16 + n)
   where
+    toBinary 0 = "0"
+    toBinary n = reverse $ go n
     go 0 = ""
     go n = let (q, r) = n `divMod` 2 in return (intToDigit r) ++ go q
+
+
+
 
 binToDec :: String -> Int
 binToDec = foldl (\acc x -> acc * 2 + digitToInt x) 0
@@ -238,23 +249,23 @@ parseOffset symTable offsetStr
 --   -- Print out each instruction
 --   mapM_ print instrs
 
+testTran :: SymbolTable -> [Instruction] -> IO ()
+testTran symTable instrs = do
+  let machineCodes = map (toMachineCode symTable) instrs
+  mapM_ print machineCodes
+
 -- Define the types and functions needed for parsing instructions
-
-removeComments :: [String] -> [String]
-removeComments = map (takeWhile (/= '#') . trim)
-  where trim = dropWhile isSpace . reverse . dropWhile isSpace . reverse
-
 
 main :: IO ()
 main = do
   let exampleCode = [
         "lw 0 5 pos1",
         "lw 0 1 input",
-        "lw 0 2 subAd",
+        "lw 0 2 subAdr",
         "jalr 2 4",
         "lw 0 5 pos1",
         "lw 0 1 input",
-        "lw 0 2 subAd",
+        "lw 0 2 subAdr",
         "jalr 2 4",
         "halt",
         "sub4n sw 7 4 stack",
@@ -276,15 +287,21 @@ main = do
         "stack .fill 0" ]
 
       symTable = [
-        ("pos1", 1),
-        ("neg1", -1),
-        ("subAd", 2),
-        ("sub4n", 3),
-        ("input", 4),
-        ("stack", 5),
-        ("subAdr", 6)]
+        ("pos1", 21),
+        ("neg1", 22),
+        ("sub4n", 9),
+        ("input", 24),
+        ("stack", 25),
+        ("subAdr", 23)]
 
   let linesOfCode = map (show . parseInstruction symTable) exampleCode
   -- print (length linesOfCode)
   mapM_ putStrLn linesOfCode
 
+  let instructions = map (parseInstruction symTable) exampleCode
+  testTran symTable (catMaybes instructions)
+
+
+
+
+-- ["lw 0 5 pos1","lw 0 1 input","lw 0 2 subAd","jalr 2 4","lw 0 5 pos1","lw 0 1 input","lw 0 2 subAd","jalr 2 4","halt","sub4n sw 7 4 stack","add 7 5 7","sw 7 1 stack","add 7 5 7","add 1 1 1","add 1 1 3","lw 0 2 neg1","add 7 2 7","lw 7 1 stack","add 7 2 7","lw 7 4 stack","jalr 4 2","pos1 .fill 1","neg1 .fill -1","subAdr .fill sub4n","input .fill 10","stack .fill 0"]

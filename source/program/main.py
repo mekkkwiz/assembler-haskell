@@ -227,7 +227,7 @@ class AssemblyTranslator:
 
 
     # def stringReader(self,filelocation = "assembler\demofile copy.txt"):
-    def stringReader(self,filelocation = "source\\testfiles\demofile copy.txt"):
+    def stringReader(self,filelocation = "source\\testfiles\\demofile-1.txt"):
 
         f = open(filelocation, "r")
         f = f.read()
