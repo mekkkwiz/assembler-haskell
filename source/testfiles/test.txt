@@ -1,0 +1,23 @@
+lw    0 1 10      ; load the value at memory address 10 into register 1
+lw    0 2 subAdr  ; load the memory address of the "sub4n" subroutine into register 2
+jalr  2 4          ; call the "sub4n" subroutine
+halt              ; halt the program
+
+sub4n:
+  sw 7 4           ; store the return address (which is the current address + 1) on the stack
+  add 7 5 7        ; decrement the argument (which is in register 5) and store the result in register 7
+  sw 7 1 stack     ; store the new value of register 7 (which is the decremented argument) on the stack
+  add 7 5 7        ; decrement the argument again and store the result in register 7
+  add 1 1 1        ; increment the counter (which is in register 1)
+  add 1 1 3        ; increment the counter again and store the result in register 3
+  lw  0 2 neg1     ; load the value -1 into register 2
+  add 7 2 7        ; add -1 to the decremented argument and store the result in register 7
+  lw  7 1 stack    ; load the previous value of register 7 (i.e. the previous decremented argument) from the stack
+  add 7 2 7        ; add the memory address of the "sub4n" subroutine to the decremented argument and store the result in register 7
+  lw  7 4 stack    ; load the return address from the stack and store it in register 7
+  jalr 4 2         ; return to the caller (which is stored in register 4)
+
+pos1  .fill 1      ; define the memory address "pos1" and initialize it with the value 1
+neg1  .fill -1     ; define the memory address "neg1" and initialize it with the value -1
+subAdr .fill sub4n ; define the memory address "subAdr" and initialize it with the memory address of the "sub4n" subroutine
+stack .fill 0      ; define the memory address "stack" and initialize it with the value 0 (this will be used as the stack pointer)

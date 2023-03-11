@@ -5,129 +5,109 @@
 -- translator
 -- __simplify
 
-module AssemblyTranslator (
-    translator
-) where
+import Data.Char
+import Data.Functor
+import Data.Map.Strict (Map)
+import Data.Map.Strict qualified as Map
+import Numeric
 
-import Data.List ( elemIndex, findIndex )
-import Numeric ( showIntAtBase )
-import Data.Char ( intToDigit )
+-- | The 'Inst' type represents an instruction in the assembly language
+data Inst = Inst
+  { instType :: String,
+    optcBin :: String
+  }
+  deriving (Show)
 
-data Instruction = Instruction {
-    name :: [String],
-    type_ :: [String],
-    optc_bin :: [String]
-}
+-- | The instruction set, represented as a map from instruction names to 'Inst' values
+instructionSet :: Map String Inst
+instructionSet =
+  Map.fromList
+    [ ("add", Inst "R" "000"),
+      ("nand", Inst "R" "001"),
+      ("lw", Inst "I" "010"),
+      ("sw", Inst "I" "011"),
+      ("beq", Inst "I" "100"),
+      ("jalr", Inst "J" "101"),
+      ("halt", Inst "O" "110"),
+      ("noop", Inst "O" "111")
+    ]
 
-instructions :: Instruction
-instructions = Instruction {
-    name = ["add", "nand", "lw", "sw", "beq", "jalr", "halt", "noop"],
-    type_ = ["R", "R", "I", "I", "I", "J", "O", "O"],
-    optc_bin = ["000", "001", "010", "011", "100", "101", "110", "111"]
-}
+-- | The 'AssemblyLine' type represents a single line of assembly code
+data AssemblyLine = AssemblyLine
+  { label :: Maybe String, -- The label, if any
+    opcode :: String, -- The opcode (instruction name)
+    operands :: [String] -- The operands
+  }
+  deriving (Show)
 
-type Label = String
-type Value = String
-type AssemblyLine = (Maybe Label, String, String, String, String)
-type FillPair = (Label, Value)
+-- | Parses a single line of assembly code into an 'AssemblyLine' value
+parseAssemblyLine :: String -> AssemblyLine
+parseAssemblyLine line = case words line of
+  [] -> AssemblyLine Nothing "" []
+  (w : ws) ->
+    if w == ".fill"
+      then AssemblyLine Nothing w ws
+      else case Map.lookup w instructionSet of
+        Just _ -> AssemblyLine Nothing w ws
+        Nothing -> AssemblyLine (Just w) (head ws) (tail ws)
 
-data AssemblyTranslator = AssemblyTranslator {
-    machineLang :: [String],        -- All instructions in assembly that have been translated to machine language
-    fillValue :: [FillPair],        -- Collect all .fill variables and make list of pairs [(symbolic, values)]
-    assembly :: [AssemblyLine],     -- Save all instructions in assembly line by line
-    labelList :: [Label],           -- All labels in the assembly file
-    errorDetect :: Bool,            -- Whether an error was detected in the assembly file
-    errorDetail :: String           -- Details of the error detected
-}
+-- | Parses an entire assembly program into a list of 'AssemblyLine' values
+parseAssemblyProgram :: String -> [AssemblyLine]
+parseAssemblyProgram = map parseAssemblyLine . lines
 
--- Used functions
-
-twosComDecToBin :: Int -> Int -> String
-twosComDecToBin dec bit
-    | dec >= 0 = let
-        bin1 = decToBin dec
-        in padToLength bit '0' bin1
-    | otherwise = let
-        bin2 = decToBin (2^bit + dec)
-        in bin2
-
+-- | Converts a decimal integer to binary
 decToBin :: Int -> String
-decToBin dec = showIntAtBase 2 intToDigit dec ""
+decToBin x = showIntAtBase 2 intToDigit x ""
 
-padToLength :: Int -> a -> [a] -> [a]
-padToLength n c xs
-    | length xs >= n = xs
-    | otherwise = padToLength n c (c:xs)
+-- | Converts a decimal integer to binary, using two's complement representation
+twosComDecToBin dec =
+  padToLength 16 $
+    if dec >= 0
+      then decToBin dec
+      else case reads binStr :: [(Int, String)] of
+        [(num, "")] -> decToBin (2 ^ 16 + num)
+        _ -> error "Invalid binary representation"
+  where
+    binStr = decToBin (2 ^ 16 + dec)
 
-checkSameLabel :: [Label] -> Bool
-checkSameLabel lst = length lst == length (removeDuplicates lst)
-    where removeDuplicates = foldr (\x acc -> if x `elem` acc then acc else x:acc) []
+-- | Pads a string to a specified length with leading zeroes
+padToLength :: Int -> String -> String
+padToLength len str = replicate (len - length str) '0' ++ str
 
-addLabelToList :: [AssemblyLine] -> [Label]
-addLabelToList lst = [l | (Just l, _, _, _, _) <- lst]
-
-fillFinding :: AssemblyTranslator -> AssemblyTranslator
-fillFinding at = let
-    fillLines = [(l, v) | (Just l, ".fill", v, _, _) <- assembly at]
-    in at { fillValue = fillLines }
-
-binToDec :: String -> Int
-binToDec binary = read ("0b" ++ binary) :: Int
-
-translator :: AssemblyLine -> AssemblyTranslator -> AssemblyTranslator
-translator (lbl, inst, ra, rb, rd) at = let
-    instructions' = instructions
-    (Just idx) = elemIndex inst (name instructions')
-    t = type_ instructions' !! idx
-    optcBin = optc_bin instructions' !! idx
-    regDecoder3Bit = padToLength 3 '0' . decToBin . read
-    in case t of
-        "R" -> let
-            machineCode = "0000000" ++ optcBin ++ regDecoder3Bit ra ++ regDecoder3Bit rb ++ "0000000000000" ++ regDecoder3Bit rd
-            in at { machineLang = machineLang at ++ [machineCode] }
-        "I" -> case inst of
-            "lw" -> let
-                offset = read rd :: Int
-                machineCode = optcBin ++ regDecoder3Bit rb ++ regDecoder3Bit ra ++ twosComDecToBin offset 16
-                in at { machineLang = machineLang at ++ [machineCode] }
-            "sw" -> let
-                offset = read rd :: Int
-                machineCode = optcBin ++ regDecoder3Bit rb ++ regDecoder3Bit ra ++ twosComDecToBin offset 16
-                in at { machineLang = machineLang at ++ [machineCode] }
-            "beq" -> let
-                label = rd
-                offset = case elemIndex label (labelList at) of
-                    Nothing -> error "label not found"
-                    Just idx -> idx - length (machineLang at) - 1
-                machineCode = optcBin ++ regDecoder3Bit ra ++ regDecoder3Bit rb ++ twosComDecToBin offset 16
-                in at { machineLang = machineLang at ++ [machineCode] }
-            _ -> let
-                offset = read rd :: Int
-                machineCode = optcBin ++ regDecoder3Bit rb ++ regDecoder3Bit ra ++ twosComDecToBin offset 16
-                in at { machineLang = machineLang at ++ [machineCode] }
-        "J" -> let
-            machineCode = optcBin ++ regDecoder3Bit ra ++ "000000000000000"
-            in at { machineLang = machineLang at ++ [machineCode] }
-        "O" -> let
-            machineCode = optcBin ++ "000000000000000000000000"
-            in at { machineLang = machineLang at ++ [machineCode] }
-        _ -> at { errorDetect = True, errorDetail = "Invalid instruction type" }
-
-assemble :: [String] -> AssemblyTranslator
-assemble lines = let
-    indexedLines = zip [1..] lines
-    labeledLines = map labelLine indexedLines
-    translation = foldr translator initial atLines
-    at = fillFinding translation
-    in if checkSameLabel (labelList at)
-        then at
-        else at { errorDetect = True, errorDetail = "Duplicate labels found" }
+-- | Converts an 'AssemblyLine' to its corresponding machine language representation
+assembleLine :: AssemblyLine -> String
+assembleLine (AssemblyLine _ ".fill" [value]) = twosComDecToBin $ read value
+assembleLine (AssemblyLine Nothing op operands) = case Map.lookup op instructionSet of
+  Just (Inst "R" instcode) -> instcode ++ rs ++ rt ++ rd ++ "00000000000" where
+      [rs, rt, rd] = map (padToLength 3 . decToBin . read) operands
+  Just (Inst "I" instcode) -> instcode ++ rs ++ rt ++ imm
     where
-        initial = AssemblyTranslator [] [] [] [] False ""
-        atLines = addLabelToList labeledLines `zip` labeledLines
-        labelLine (i, line) = case words line of
-            [] -> (Nothing, "", "", "", "")
-            (w:ws) -> if last w == ':'
-                        then (Just $ init w, unwords ws, "", "", "")
-                        else (Nothing, w, head ws, ws !! 1, ws !! 2)
+      rs = case operands of
+        (r : _) -> padToLength 3 $ decToBin $ read r
+        [] -> error "Not enough operands for instruction"
+      rt = case drop 1 operands of
+        (t : _) -> padToLength 3 $ decToBin $ read t
+        [] -> error "Not enough operands for instruction"
+      imm = twosComDecToBin $ read (last operands)
+  Just (Inst "J" instcode) -> instcode ++ rs ++ "0000000000000"
+    where
+      rs = padToLength 3 $ decToBin $ read (head operands)
+  Just (Inst "O" instcode) -> instcode ++ "0000000000000000"
+  Nothing -> error $ "Unknown opcode: " ++ op
 
+-- | Assembles an entire assembly program into a machine code binary string
+assembleProgram :: FilePath -> IO String
+assembleProgram path = readFile path <&> (unlines . map assembleLine . parseAssemblyProgram)
+
+-- | Writes the assembled machine code binary string to a file
+writeMachineCodeToFile :: FilePath -> String -> IO ()
+writeMachineCodeToFile = writeFile
+
+-- | Main function that assembles the program and writes the output to a file
+main :: IO ()
+main = do
+  let inputPath = "./source/testfiles/demofile copy.txt"
+  let outputPath = "./output/machine_code.txt"
+  code <- assembleProgram inputPath
+  writeMachineCodeToFile outputPath code
+  putStrLn "Assembly complete. Machine code written to file."
