@@ -83,7 +83,7 @@ toMachineCode symTable instr = case instr of
       Just $ binToDec $ opcode ++
                         padLeft '0' 3 (decToBin regA) ++
                         padLeft '0' 3 (decToBin regB) ++
-                        padLeft '0' 15 ""
+                        padLeft '0' 16 ""
     encodeOType label opcode =
       Just $ binToDec $ opcode ++ padLeft '0' 22 ""
 
@@ -156,7 +156,6 @@ parseWithoutLabel symTable instrName args =
           _      -> Nothing
 
 
-
 parseReg :: String -> Register
 parseReg regStr = read [last regStr]
 
@@ -168,86 +167,6 @@ parseOffset symTable offsetStr
       Just val -> Right val           -- if found, return its value
       Nothing -> error ("Invalid offset: " ++ offsetStr ++ " don't found in given symbol table") -- if not found, return an error
 
-
-
--- -- Parse label and compute its offset from the current instruction
--- parseLabelOffset :: SymbolTable -> String -> Offset
--- parseLabelOffset symTable label =
---   case Map.lookup label symTable of
---     Just offset -> offset
---     Nothing -> error ("Undefined label: " ++ label)
-
--- -- Parse label or value for .fill instruction
--- parseLabelOrValue :: SymbolTable -> String -> Offset
--- parseLabelOrValue symTable val =
---   case Map.lookup val symTable of
---     Just offset -> offset
---     Nothing -> read val
-
--- makeSymbolTable :: [String] -> Map.Map String Int
--- makeSymbolTable instrs = go instrs 0 Map.empty
---   where
---     go [] _ symTable = symTable
---     go (instr:instrs) addr symTable =
---       let (label, rest) = break (==':') instr
---           symTable' = if null label
---                         then symTable
---                         else Map.insert (init label) addr symTable
---       in go instrs (addr + 1) symTable'
-
-
--- -- Convert assembly code into machine code
--- assemble :: String -> Maybe [Int]
--- assemble code =
---   let instrs = lines code
---       parsedInstrs = map (parseInstruction symbolTable) instrs
---       machineCode = mapMaybe (fmap (toMachineCode symbolTable)) parsedInstrs
---   in (sequence machineCode Control.Applicative.<|> Nothing)
---   where
---     symbolTable = makeSymbolTable (lines code)
-
--- -- Example assembly code
--- exampleCode = unlines [
---     "lw 0 5 pos1",
---     "lw 0 1 input",
---     "lw 0 2 subAd",
---     "jalr 2 4",
---     "lw 0 5 pos1",
---     "lw 0 1 input",
---     "lw 0 2 subAd",
---     "jalr 2 4",
---     "halt",
---     "sub4n sw 7 4",
---     "add 7 5 7",
---     "sw 7 1 stack",
---     "add 7 5 7",
---     "add 1 1 1",
---     "add 1 1 3",
---     "lw 0 2 neg1",
---     "add 7 2 7",
---     "lw 7 1 stack",
---     "add 7 2 7",
---     "lw 7 4 stack",
---     "jalr 4 2",
---     "pos1 .fill 1",
---     "neg1 .fill -1",
---     "subAdr .fill sub4n",
---     "input .fill 10",
---     "stack .fill 0"
---   ]
-
--- Define the types and functions needed for parsing instructions
--- main :: IO ()
--- main = do
---   -- Read in the assembly code from a file
---   assemblyCode <- readFile "exampleCode.txt"
-
---   -- Parse the assembly code into a list of instructions
---   let symTable = buildSymbolTable assemblyCode
---   let instrs = parseInstructions symTable assemblyCode
-
---   -- Print out each instruction
---   mapM_ print instrs
 
 testTran :: SymbolTable -> [Instruction] -> IO ()
 testTran symTable instrs = do
