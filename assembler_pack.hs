@@ -40,7 +40,7 @@ setFillToSymbol pairs =
                     then case readMaybe value :: Maybe Int of
                       Just _ ->  Just $ addToSymbolTable [] label (fst pairs)
                       -- Nothing -> Nothing
-                      Nothing -> Just $ addToSymbolTable [] label (99)
+                      Nothing -> Just $ addToSymbolTable [] (label++","++value) (-1)
                     else Nothing
         _ -> Nothing
 
