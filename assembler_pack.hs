@@ -1,20 +1,12 @@
 -- PACK
 import Data.Maybe
 import Data.Map (Map)
+import Text.Read
 import qualified Data.Map as Map
 type Label = String
 type Value = String
 type AssemblyLine = (Maybe Label, String, String, String, String)
 type SymbolTable = [(Label,Int)]
-
--- data AssemblyTranslator = AssemblyTranslator {
---     machineLang :: [String],        -- All instructions in assembly that have been translated to machine language
---     fillValue :: [SymbolTable],        -- Collect all .fill variables and make list of pairs [(symbolic, values)]
---     assembly :: [AssemblyLine],     -- Save all instructions in assembly line by line
---     labelList :: [Label],           -- All labels in the assembly file
---     errorDetect :: Bool,            -- Whether an error was detected in the assembly file
---     errorDetail :: String           -- Details of the error detected
--- }
 
 opcodes :: Map String String
 opcodes = Map.fromList [("add", "000"), ("nand", "001"), ("lw", "010"),
@@ -44,12 +36,20 @@ setFillToSymbol pairs =
             if instruction `elem` Map.keys opcodes
                 then Just $ addToSymbolTable [] label (fst pairs)
                 else if instruction == ".fill"
-                    then Just $ addToSymbolTable [] label (fst pairs)
+                    -- then Just $ addToSymbolTable [] label (fst pairs)
+                    then case readMaybe value :: Maybe Int of
+                      Just _ ->  Just $ addToSymbolTable [] label (fst pairs)
+                      -- Nothing -> Nothing
+                      Nothing -> Just $ addToSymbolTable [] label (99)
                     else Nothing
         _ -> Nothing
-                
 
+maybeToSym :: [Maybe b] -> [b]
+maybeToSym [] = []
+maybeToSym x = map fromJust (filter (isJust) x)
 
+setSymbolTable :: Foldable t => t (Int, String) -> [SymbolTable]
+setSymbolTable l = maybeToSym $ foldr (\x acc -> setFillToSymbol x : acc) [] l
 
 main :: IO ()
 main = do
@@ -82,6 +82,8 @@ main = do
         "stack .fill 0" ]
 
   let pairsCode = zip [0..] exampleCode
-  let symTable =  foldr (\x acc -> setFillToSymbol x : acc) [] pairsCode
+--   let symTable = setSymbolTable pairsCode []
+  let symTable =  setSymbolTable pairsCode
+--   let sym = map fromJust (filter (isJust) symTable)
 
   mapM_ (putStrLn . show) symTable
