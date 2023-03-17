@@ -51,6 +51,34 @@ maybeToSym x = map fromJust (filter (isJust) x)
 setSymbolTable :: Foldable t => t (Int, String) -> [SymbolTable]
 setSymbolTable l = maybeToSym $ foldr (\x acc -> setFillToSymbol x : acc) [] l
 
+
+setSymbolTable' :: [String] -> SymbolTable -> Int -> SymbolTable
+setSymbolTable' codeLines symTable currentLine = foldl updateSymTable symTable (zip codeLines [currentLine..])
+  where
+    updateSymTable :: SymbolTable -> (String, Int) -> SymbolTable
+    updateSymTable symTable (codeLine, currentLine) =
+      let wordsInLine = words codeLine
+          updatedSymTable =
+            if isLabel codeLine
+            then case wordsInLine of
+              [label, ".fill", value] ->                                       -- .fill label value
+                case lookup value symTable of                                  -- check did value is in symbol table
+                  Just realValue ->                                            -- if value is in symbol table, add label with real value to symbol table
+                    addToSymbolTable symTable label realValue                  -- and return updated symbol table
+                  Nothing -> addToSymbolTable symTable label (read value)      -- if value is not in symbol table, add label with value to symbol table
+              _ -> addToSymbolTable symTable (head wordsInLine) currentLine    -- if line is not .fill, add label with current line to symbol table
+            else symTable                                                      -- if line is not label, return symbol table
+      in updatedSymTable
+
+    isLabel :: String -> Bool
+    isLabel instr =
+      case words instr of
+        (label : instrName : _) ->
+          (instrName == ".fill") || (instrName `elem` Map.keys opcodes)
+        [instrName] ->
+          instrName `notElem` ["halt", "noop"]
+        _ -> False
+
 main :: IO ()
 main = do
   let exampleCode = [
@@ -83,7 +111,8 @@ main = do
 
   let pairsCode = zip [0..] exampleCode
 --   let symTable = setSymbolTable pairsCode []
-  let symTable =  setSymbolTable pairsCode
+  -- let symTable =  setSymbolTable pairsCode
+  let symTable =  setSymbolTable' exampleCode [] 0
 --   let sym = map fromJust (filter (isJust) symTable)
 
-  mapM_ (putStrLn . show) symTable
+  mapM_ print symTable
