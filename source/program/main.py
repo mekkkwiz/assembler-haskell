@@ -10,9 +10,11 @@ class AssemblyTranslator:
     errorDetect = False
     errorDetail = ""
 
+    fileName = "demofile-4.txt"
+
 #*used functions
 
-    def printer(self, des = "source\program\output\\textToSimulator.txt", inputList = __machineLang):          #TODO: write machine language to text file
+    def printer(self, des = "source\program\output\\textToSimulator_" + fileName, inputList = __machineLang):          #TODO: write machine language to text file
             file = open(des, "w")                                                       #TODO: "r" - Read - Default value. Opens a file for reading, error if the file does not exist
             for i in inputList:                                                         #TODO: "a" - Append - Opens a file for appending, creates the file if it does not exist
                 file.write(str(i)+"\n")                                                 #TODO: "x" - Create - Creates the specified file, returns an error if the file exists
@@ -227,7 +229,7 @@ class AssemblyTranslator:
 
 
     # def stringReader(self,filelocation = "assembler\demofile copy.txt"):
-    def stringReader(self,filelocation = "source\\testfiles\\demofile-1.txt"):
+    def stringReader(self,filelocation = "source\\testfiles\\" + fileName):
 
         f = open(filelocation, "r")
         f = f.read()

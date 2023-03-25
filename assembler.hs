@@ -197,8 +197,8 @@ setSymbolTable' codeLines symTable currentLine = foldl updateSymTable symTable (
               [label, ".fill", value] ->                                       -- .fill label value
                 case lookup value symTable of                                  -- check did value is in symbol table
                   Just realValue ->                                            -- if value is in symbol table, add label with real value to symbol table
-                    addToSymbolTable symTable label realValue                  -- and return updated symbol table
-                  Nothing -> addToSymbolTable symTable label (read value)      -- if value is not in symbol table, add label with value to symbol table
+                    addToSymbolTable symTable label currentLine                  -- and return updated symbol table
+                  Nothing -> addToSymbolTable symTable label currentLine     -- if value is not in symbol table, add label with value to symbol table
               _ -> addToSymbolTable symTable (head wordsInLine) currentLine    -- if line is not .fill, add label with current line to symbol table
             else symTable                                                      -- if line is not label, return symbol table
       in updatedSymTable
@@ -232,7 +232,7 @@ main :: IO ()
 main = do
   let fileName = "demofile-1.txt"
       inputPath = "./source/testfiles/" ++ fileName
-      outputPath = "./output/machine_code" ++ fileName ++ ".txt"
+      outputPath = "./output/machine_code_" ++ fileName
 
   -- Read the assembly code from the input file
   code <- readFile inputPath
