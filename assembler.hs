@@ -230,8 +230,9 @@ translateAssembly codeLines =
 
 main :: IO ()
 main = do
-  let inputPath = "./source/testfiles/demofile-1.txt"
-      outputPath = "./output/machine_code.txt"
+  let fileName = "demofile-1.txt"
+      inputPath = "./source/testfiles/" ++ fileName
+      outputPath = "./output/machine_code" ++ fileName ++ ".txt"
 
   -- Read the assembly code from the input file
   code <- readFile inputPath
